@@ -74,27 +74,45 @@ async function scrapeMND() {
     throw new Error('Failed to parse any rates from MND page');
   }
 
-  // Extract daily rate commentary headline + summary
-  // Structure: .article > .article-content > .article-title > a (headline)
-  //            .article > .article-content > .article-body (summary)
+  // Fetch daily rate commentary from MND RSS feed
+  // Articles on the main page are client-rendered (Handlebars + WebSocket),
+  // so we grab from the RSS feed instead which has actual content
   let commentary = null;
   try {
-    const headlineMatch = html.match(/class="article-title"[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
-    const bodyMatch = html.match(/class="article-body"[^>]*>([\s\S]*?)<\/div>/);
+    const rssRes = await fetch('https://www.mortgagenewsdaily.com/rss/full', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RatePulse/1.0)' },
+    });
+    if (rssRes.ok) {
+      const rssXml = await rssRes.text();
 
-    let headline = headlineMatch ? headlineMatch[1].replace(/<[^>]+>/g, '').trim() : null;
-    let summary = bodyMatch ? bodyMatch[1].replace(/<[^>]+>/g, '').trim() : null;
+      // Find the first rate-related article (skip industry/product news)
+      const items = rssXml.split('<item>').slice(1, 6); // first 5 items
+      for (const item of items) {
+        const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/);
+        const descMatch = item.match(/<description>([\s\S]*?)<\/description>/);
+        const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : '';
 
-    // Clean up: limit summary length, remove extra whitespace
-    if (summary && summary.length > 500) summary = summary.slice(0, 497) + '...';
-    if (summary) summary = summary.replace(/\s+/g, ' ').trim();
-    if (headline) headline = headline.replace(/\s+/g, ' ').trim();
-
-    if (headline || summary) {
-      commentary = { headline, summary };
+        // Filter for rate/MBS/bond related headlines
+        const isRateNews = /rate|mortgage|mbs|bond|treasury|yield|lock|lender|pricing/i.test(title);
+        if (isRateNews && descMatch) {
+          let desc = descMatch[1]
+            .replace(/<!\[CDATA\[|\]\]>/g, '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (desc.length > 400) desc = desc.slice(0, 397) + '...';
+          commentary = { headline: title.trim(), summary: desc };
+          break;
+        }
+      }
     }
   } catch (e) {
-    // Commentary parsing is non-critical — don't fail the whole response
+    // RSS fetch is non-critical — commentary falls back to auto-generated
   }
 
   return {
