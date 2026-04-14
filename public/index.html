@@ -998,33 +998,48 @@ function updateSourceStatus() {
 updateSourceStatus();
 
 // Background fetch — update UI when live rates arrive
+// No re-animation of counters — just set values directly to avoid jarring double-count
 function refreshUI() {
-  buildRateCards();
   buildTicker();
   buildMarketStrip();
   updateSparkHeaders();
   updateCompare();
   updateTimestamp();
   updateSourceStatus();
-  // Smooth transition for updated cards
+
+  // Update rate cards WITHOUT rebuilding DOM — just patch the values in-place
+  document.querySelectorAll('.rate-card').forEach((card, i) => {
+    const r = RATES[i];
+    if (!r) return;
+    const rv = card.querySelector('.rv');
+    if (rv) {
+      rv.dataset.target = r.rate;
+      rv.textContent = r.rate.toFixed(2); // direct set, no animation
+    }
+    const apr = card.querySelector('.rate-apr');
+    if (apr) apr.textContent = r.apr.toFixed(2) + '% APR';
+    const chg = card.querySelector('.change');
+    if (chg) {
+      const dn = r.chg <= 0;
+      chg.className = 'change ' + (dn ? 'down' : 'up');
+      const arrow = dn
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12l7 7 7-7"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+      chg.innerHTML = `${arrow} ${(dn ? '' : '+') + r.chg.toFixed(2)}`;
+    }
+    const prc = pos(r.rate, r.lo, r.hi);
+    const fill = card.querySelector('.range-fill');
+    if (fill) { fill.dataset.w = prc; fill.style.width = prc + '%'; }
+    const marker = card.querySelector('.range-marker');
+    if (marker) { marker.dataset.l = prc; marker.style.left = prc + '%'; }
+    const mp = card.querySelector('.mp');
+    if (mp) mp.textContent = fmt(pmtCalc(loan, r.rate, 360)) + '/mo';
+  });
+
+  // Subtle flash to indicate data updated (no position animation)
   animate('.rate-card', {
-    opacity: [0.6, 1], translateY: [6, 0],
-    delay: stagger(50), duration: 500, ease: 'outExpo'
-  });
-  // Re-trigger counters
-  document.querySelectorAll('.rv').forEach(el => {
-    const target = parseFloat(el.dataset.target);
-    const counter = { val: 0 };
-    animate(counter, {
-      val: target, duration: 1000, ease: 'outExpo',
-      onUpdate: () => { el.textContent = counter.val.toFixed(2); }
-    });
-  });
-  document.querySelectorAll('.range-fill').forEach(el => {
-    animate(el, { width: [0, el.dataset.w + '%'], duration: 900, ease: 'outExpo' });
-  });
-  document.querySelectorAll('.range-marker').forEach(el => {
-    animate(el, { left: [0, el.dataset.l + '%'], duration: 900, ease: 'outExpo' });
+    borderColor: ['rgba(59,130,246,0.3)', 'rgba(255,255,255,0.06)'],
+    duration: 800, ease: 'outQuad'
   });
 }
 
