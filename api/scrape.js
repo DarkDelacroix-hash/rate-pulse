@@ -97,7 +97,9 @@ export default async function handler(req) {
       status: 200,
       headers: {
         ...HEADERS,
-        'Cache-Control': 's-maxage=1800, stale-while-revalidate=3600',
+        'Vercel-CDN-Cache-Control': 's-maxage=1800, stale-while-revalidate=3600',
+        'CDN-Cache-Control': 's-maxage=1800, stale-while-revalidate=3600',
+        'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=3600',
       },
     });
   } catch (err) {

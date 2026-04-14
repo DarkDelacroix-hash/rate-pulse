@@ -17,8 +17,10 @@ const PRODUCT_MAP = [
 const HEADERS = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
-  // Short edge cache — frontend can poll frequently without hitting origin
-  'Cache-Control': 's-maxage=300, stale-while-revalidate=900',
+  // Vercel-specific: controls edge CDN cache separately from browser cache
+  'Vercel-CDN-Cache-Control': 's-maxage=300, stale-while-revalidate=900',
+  'CDN-Cache-Control': 's-maxage=300, stale-while-revalidate=900',
+  'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=900',
 };
 
 async function scrapeMND() {
