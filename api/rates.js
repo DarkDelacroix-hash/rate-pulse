@@ -105,6 +105,8 @@ async function scrapeMND() {
             .replace(/&#39;/g, "'")
             .replace(/\s+/g, ' ')
             .trim();
+          // Skip items with unrendered template placeholders
+          if (desc.includes('{{') || desc.length < 20) continue;
           if (desc.length > 400) desc = desc.slice(0, 397) + '...';
           commentary = { headline: title.trim(), summary: desc };
           break;
