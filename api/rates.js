@@ -75,18 +75,20 @@ async function scrapeMND() {
   }
 
   // Extract daily rate commentary headline + summary
+  // Structure: .article > .article-content > .article-title > a (headline)
+  //            .article > .article-content > .article-body (summary)
   let commentary = null;
   try {
-    // Match the main article in the hp-rates / Mortgage Rate Watch section
-    const headlineMatch = html.match(/class="article[\s\S]*?<a[^>]*class="article-url"[^>]*>([\s\S]*?)<\/a>/);
-    const summaryMatch = html.match(/class="article[\s\S]*?class="article-content"[^>]*>([\s\S]*?)<\/div>/);
+    const headlineMatch = html.match(/class="article-title"[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/);
+    const bodyMatch = html.match(/class="article-body"[^>]*>([\s\S]*?)<\/div>/);
 
     let headline = headlineMatch ? headlineMatch[1].replace(/<[^>]+>/g, '').trim() : null;
-    let summary = summaryMatch ? summaryMatch[1].replace(/<[^>]+>/g, '').trim() : null;
+    let summary = bodyMatch ? bodyMatch[1].replace(/<[^>]+>/g, '').trim() : null;
 
     // Clean up: limit summary length, remove extra whitespace
     if (summary && summary.length > 500) summary = summary.slice(0, 497) + '...';
     if (summary) summary = summary.replace(/\s+/g, ' ').trim();
+    if (headline) headline = headline.replace(/\s+/g, ' ').trim();
 
     if (headline || summary) {
       commentary = { headline, summary };
