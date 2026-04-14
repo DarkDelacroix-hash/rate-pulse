@@ -36,6 +36,90 @@
     --r: 16px;
   }
 
+  /* ---- Light mode overrides ---- */
+  [data-theme="light"] {
+    --bg: #f5f3f9;
+    --bg2: #ebe8f2;
+    --card: rgba(255,255,255,0.85);
+    --card-hover: rgba(255,255,255,0.95);
+    --card-glass: rgba(255,255,255,0.7);
+    --border: rgba(103,72,157,0.10);
+    --border-hover: rgba(103,72,157,0.20);
+    --t1: #1a1128;
+    --t2: #5a5570;
+    --t3: #8880a0;
+    --green: #059b5c;
+    --green-dim: #048a52;
+    --green-bg: rgba(5,155,92,0.10);
+    --red: #dc2c4a;
+    --red-bg: rgba(220,44,74,0.08);
+    --blue: #67489D;
+    --blue-bg: rgba(103,72,157,0.08);
+    --purple: #67489D;
+    --purple-bg: rgba(103,72,157,0.08);
+    --amber: #67489D;
+    --amber-bg: rgba(103,72,157,0.06);
+    --cyan: #7C5DB2;
+    --accent: #67489D;
+    --accent-light: #7C5DB2;
+    --accent-glow: #67489D;
+  }
+
+  [data-theme="light"] body { background: var(--bg); color: var(--t1); }
+
+  [data-theme="light"] .orb-1 { background:radial-gradient(circle,rgba(103,72,157,0.08),transparent 60%); }
+  [data-theme="light"] .orb-2 { background:radial-gradient(circle,rgba(124,93,178,0.06),transparent 60%); }
+  [data-theme="light"] .orb-3 { background:radial-gradient(circle,rgba(214,190,255,0.10),transparent 60%); }
+  [data-theme="light"] .orb-4 { background:radial-gradient(circle,rgba(5,155,92,0.04),transparent 60%); }
+
+  [data-theme="light"] .noise { display:none; }
+
+  [data-theme="light"] .ticker-bar { background:rgba(255,255,255,0.90); border-bottom-color:rgba(103,72,157,0.10); }
+  [data-theme="light"] .logo-mark { box-shadow: 0 4px 20px rgba(103,72,157,0.20); }
+
+  [data-theme="light"] .rate-card { box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  [data-theme="light"] .rate-card:hover { box-shadow: 0 8px 30px rgba(103,72,157,0.10), 0 0 0 1px rgba(103,72,157,0.08); }
+
+  [data-theme="light"] .spark-card,
+  [data-theme="light"] .mbs-card,
+  [data-theme="light"] .tool-card { box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+
+  [data-theme="light"] .calc-field input,
+  [data-theme="light"] .calc-field select { background:rgba(103,72,157,0.04); border-color:rgba(103,72,157,0.12); color:var(--t1); }
+  [data-theme="light"] .calc-field select option { background:#fff; color:var(--t1); }
+  [data-theme="light"] .compare-selects select { background:rgba(103,72,157,0.04); border-color:rgba(103,72,157,0.12); color:var(--t1); }
+  [data-theme="light"] .compare-selects select option { background:#fff; }
+
+  [data-theme="light"] .range-track { background:rgba(103,72,157,0.08); }
+  [data-theme="light"] .range-marker { background:var(--t1); box-shadow:0 0 8px rgba(0,0,0,0.15); }
+
+  [data-theme="light"] .gauge-svg path[fill="none"][stroke="rgba(255,255,255,0.06)"] { stroke:rgba(103,72,157,0.08); }
+
+  [data-theme="light"] .badge { border-color:rgba(103,72,157,0.12); background:rgba(255,255,255,0.8); }
+  [data-theme="light"] .badge:hover { background:rgba(255,255,255,0.95); }
+  [data-theme="light"] .live-indicator { border-color:rgba(103,72,157,0.12); background:rgba(255,255,255,0.8); }
+  [data-theme="light"] .range-track { background:rgba(103,72,157,0.08); }
+  [data-theme="light"] .rate-card:hover { box-shadow: 0 8px 30px rgba(103,72,157,0.12); border-color:rgba(103,72,157,0.18); }
+  [data-theme="light"] .rate-card::after { opacity:0 !important; }
+  [data-theme="light"] .change.down { color:var(--green); background:var(--green-bg); }
+  [data-theme="light"] .change.up { color:var(--red); background:var(--red-bg); }
+  [data-theme="light"] .compare-diff { background:var(--green-bg); border-color:rgba(5,155,92,0.15); color:var(--green); }
+  [data-theme="light"] .footer { border-top-color:rgba(103,72,157,0.10); }
+
+  [data-theme="light"] ::-webkit-scrollbar-thumb { background:rgba(103,72,157,0.12); }
+  [data-theme="light"] ::-webkit-scrollbar-thumb:hover { background:rgba(103,72,157,0.22); }
+
+  /* ---- Theme toggle ---- */
+  .theme-toggle {
+    display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:10px; border:1px solid var(--border);
+    background:var(--card-glass); cursor:pointer; transition:all 0.3s;
+    opacity:0; transform:translateY(-10px);
+  }
+  .theme-toggle:hover { border-color:var(--border-hover); background:var(--card); }
+  .theme-toggle svg { width:16px; height:16px; color:var(--t2); transition:color 0.3s; }
+  .theme-toggle:hover svg { color:var(--t1); }
+
   * { margin:0; padding:0; box-sizing:border-box; }
 
   body {
@@ -76,7 +160,7 @@
 
   /* ---- Ticker bar ---- */
   .ticker-bar {
-    background: rgba(17,24,39,0.92);
+    background: var(--card);
     border-bottom: 1px solid var(--border);
     overflow: hidden;
     height: 36px;
@@ -464,6 +548,11 @@
         <span>Live</span>
       </div>
       <div class="timestamp" id="timestamp"></div>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle light/dark mode">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -516,7 +605,7 @@
       <h3>MBS Trend Gauge</h3>
       <div class="gauge-wrap">
         <svg class="gauge-svg" viewBox="0 0 200 110">
-          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" stroke-linecap="round"/>
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--border)" stroke-width="10" stroke-linecap="round"/>
           <path d="M 20 100 A 80 80 0 0 1 73 30" fill="none" stroke="var(--green)" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
           <path d="M 73 30 A 80 80 0 0 1 127 30" fill="none" stroke="var(--amber)" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
           <path d="M 127 30 A 80 80 0 0 1 180 100" fill="none" stroke="var(--red)" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
@@ -1326,6 +1415,44 @@ window.addEventListener('resize', () => {
     drawSparkline('s15', h15, '#D6BEFF');
     drawSparkline('sFHA', hFHA, '#00e88f');
   }
+});
+
+/* ==================================================================
+   THEME TOGGLE — light / dark mode
+   ================================================================== */
+const sunIcon = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+const moonIcon = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('hs-theme', theme);
+  const icon = document.getElementById('themeIcon');
+  icon.innerHTML = theme === 'light' ? moonIcon : sunIcon;
+  // Redraw sparklines with appropriate colors for theme
+  if (sparkData['s30']) {
+    const sparkColor1 = theme === 'light' ? '#67489D' : '#7C5DB2';
+    const sparkColor2 = theme === 'light' ? '#7C5DB2' : '#D6BEFF';
+    const sparkColor3 = theme === 'light' ? '#059b5c' : '#00e88f';
+    drawSparkline('s30', h30, sparkColor1);
+    drawSparkline('s15', h15, sparkColor2);
+    drawSparkline('sFHA', hFHA, sparkColor3);
+  }
+}
+
+// Init theme from localStorage or system preference
+const savedTheme = localStorage.getItem('hs-theme');
+if (savedTheme) {
+  setTheme(savedTheme);
+} else if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+  setTheme('light');
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'light' ? 'dark' : 'light';
+  setTheme(next);
+  // Animate the toggle button
+  animate('#themeToggle', { rotate: [0, 180], duration: 400, ease: 'outExpo' });
 });
 </script>
 </body>
