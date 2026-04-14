@@ -1,5 +1,6 @@
-// Vercel Edge Function — scrapes Mortgage News Daily for current rates
-// Edge runtime: ~0ms cold start vs ~250ms+ for Node.js serverless
+// Vercel Edge Function — lightweight endpoint for the frontend
+// Reads from the edge-cached /api/scrape endpoint (populated by cron)
+// If cache is empty/cold, triggers a live scrape as fallback
 // Endpoint: GET /api/rates
 
 export const config = { runtime: 'edge' };
@@ -16,8 +17,68 @@ const PRODUCT_MAP = [
 const HEADERS = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
-  'Cache-Control': 's-maxage=900, stale-while-revalidate=1800',
+  // Short edge cache — frontend can poll frequently without hitting origin
+  'Cache-Control': 's-maxage=300, stale-while-revalidate=900',
 };
+
+async function scrapeMND() {
+  const response = await fetch('https://www.mortgagenewsdaily.com/mortgage-rates', {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+  });
+
+  if (!response.ok) throw new Error(`MND returned ${response.status}`);
+  const html = await response.text();
+
+  const allChanges = [];
+  const chgRegex = /rate-daily-chg[\s\S]*?([-+]?\d+\.?\d*)\s*<\/div>/g;
+  let m;
+  while ((m = chgRegex.exec(html)) !== null) allChanges.push(parseFloat(m[1]));
+
+  const allLows = [], allHighs = [];
+  const lowRegex = /range-val low[^>]*>([\d.]+)%<\/div>/g;
+  const highRegex = /range-val high[^>]*>([\d.]+)%<\/div>/g;
+  while ((m = lowRegex.exec(html)) !== null) allLows.push(parseFloat(m[1]));
+  while ((m = highRegex.exec(html)) !== null) allHighs.push(parseFloat(m[1]));
+
+  const uniqueLows = allLows.filter((_, j) => j % 2 === 0);
+  const uniqueHighs = allHighs.filter((_, j) => j % 2 === 0);
+
+  const rates = PRODUCT_MAP.map((product, i) => {
+    const rateMatch = html.match(
+      new RegExp(`data-series="${i}"[\\s\\S]*?data-calc-rate="([\\d.]+)"`)
+    );
+    return {
+      key: product.key,
+      label: product.label,
+      cls: product.cls,
+      rate: rateMatch ? parseFloat(rateMatch[1]) : null,
+      chg: allChanges[i] ?? null,
+      lo: uniqueLows[i] ?? null,
+      hi: uniqueHighs[i] ?? null,
+      years: product.defaultYears,
+    };
+  });
+
+  const mbsMatch = html.match(/current-rate mbs[\s\S]*?([\d.]+)/);
+  const mbs = mbsMatch ? parseFloat(mbsMatch[1]) : null;
+  const treasuryMatch = html.match(/10 Year US Treasury[\s\S]*?current-rate mbs[\s\S]*?([\d.]+)/);
+  const treasury10y = treasuryMatch ? parseFloat(treasuryMatch[1]) : null;
+
+  if (rates.every(r => r.rate === null)) {
+    throw new Error('Failed to parse any rates from MND page');
+  }
+
+  return {
+    source: 'mortgagenewsdaily.com',
+    fetched_at: new Date().toISOString(),
+    rates,
+    market: { mbs_price: mbs, treasury_10y: treasury10y },
+  };
+}
 
 export default async function handler(req) {
   if (req.method === 'OPTIONS') {
@@ -25,73 +86,16 @@ export default async function handler(req) {
   }
 
   try {
-    const response = await fetch('https://www.mortgagenewsdaily.com/mortgage-rates', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
+    // Direct scrape (edge-cached by Vercel CDN via Cache-Control header)
+    // Vercel's edge cache means: first request scrapes, next ~5 min get instant cache hits
+    // stale-while-revalidate means even after 5 min, users get instant stale data
+    // while the cache refreshes in the background
+    const data = await scrapeMND();
+
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: HEADERS,
     });
-
-    if (!response.ok) {
-      throw new Error(`MND returned ${response.status}`);
-    }
-
-    const html = await response.text();
-
-    // Parse all daily changes and ranges once (avoid re-scanning per product)
-    const allChanges = [];
-    const chgRegex = /rate-daily-chg[\s\S]*?([-+]?\d+\.?\d*)\s*<\/div>/g;
-    let m;
-    while ((m = chgRegex.exec(html)) !== null) allChanges.push(parseFloat(m[1]));
-
-    const allLows = [];
-    const allHighs = [];
-    const lowRegex = /range-val low[^>]*>([\d.]+)%<\/div>/g;
-    const highRegex = /range-val high[^>]*>([\d.]+)%<\/div>/g;
-    while ((m = lowRegex.exec(html)) !== null) allLows.push(parseFloat(m[1]));
-    while ((m = highRegex.exec(html)) !== null) allHighs.push(parseFloat(m[1]));
-
-    // Dedupe (mobile + desktop = 2 entries each)
-    const uniqueLows = allLows.filter((_, j) => j % 2 === 0);
-    const uniqueHighs = allHighs.filter((_, j) => j % 2 === 0);
-
-    // Build rate objects
-    const rates = PRODUCT_MAP.map((product, i) => {
-      const rateMatch = html.match(
-        new RegExp(`data-series="${i}"[\\s\\S]*?data-calc-rate="([\\d.]+)"`)
-      );
-      return {
-        key: product.key,
-        label: product.label,
-        cls: product.cls,
-        rate: rateMatch ? parseFloat(rateMatch[1]) : null,
-        chg: allChanges[i] ?? null,
-        lo: uniqueLows[i] ?? null,
-        hi: uniqueHighs[i] ?? null,
-        years: product.defaultYears,
-      };
-    });
-
-    // MBS price
-    const mbsMatch = html.match(/current-rate mbs[\s\S]*?([\d.]+)/);
-    const mbs = mbsMatch ? parseFloat(mbsMatch[1]) : null;
-
-    // 10Y Treasury
-    const treasuryMatch = html.match(/10 Year US Treasury[\s\S]*?current-rate mbs[\s\S]*?([\d.]+)/);
-    const treasury10y = treasuryMatch ? parseFloat(treasuryMatch[1]) : null;
-
-    if (rates.every(r => r.rate === null)) {
-      throw new Error('Failed to parse any rates from MND page');
-    }
-
-    return new Response(JSON.stringify({
-      source: 'mortgagenewsdaily.com',
-      fetched_at: new Date().toISOString(),
-      rates,
-      market: { mbs_price: mbs, treasury_10y: treasury10y },
-    }), { status: 200, headers: HEADERS });
-
   } catch (err) {
     return new Response(JSON.stringify({
       error: 'Failed to fetch rates',

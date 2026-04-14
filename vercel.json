@@ -1,14 +1,21 @@
 {
   "cleanUrls": true,
+  "crons": [
+    {
+      "path": "/api/scrape",
+      "schedule": "*/15 6-22 * * 1-5"
+    }
+  ],
   "rewrites": [
-    { "source": "/api/rates", "destination": "/api/rates" }
+    { "source": "/api/rates", "destination": "/api/rates" },
+    { "source": "/api/scrape", "destination": "/api/scrape" }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Cache-Control", "value": "s-maxage=900, stale-while-revalidate=1800" }
+        { "key": "Access-Control-Allow-Methods", "value": "GET, OPTIONS" }
       ]
     },
     {

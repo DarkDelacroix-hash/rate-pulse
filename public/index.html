@@ -43,15 +43,26 @@
     overflow-x: hidden;
   }
 
-  /* ---- Ambient background ---- */
+  /* ---- Ambient background (CSS-only, no filter:blur = massive GPU savings) ---- */
   .ambient { position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden; }
-  .orb { position:absolute; border-radius:50%; filter:blur(130px); opacity:0; }
-  .orb-1 { width:700px;height:700px;background:radial-gradient(circle,rgba(59,130,246,0.18),transparent 70%);top:-250px;left:-150px; }
-  .orb-2 { width:600px;height:600px;background:radial-gradient(circle,rgba(0,232,143,0.10),transparent 70%);bottom:-250px;right:-150px; }
-  .orb-3 { width:500px;height:500px;background:radial-gradient(circle,rgba(139,92,246,0.08),transparent 70%);top:35%;left:55%;transform:translate(-50%,-50%); }
-  .orb-4 { width:350px;height:350px;background:radial-gradient(circle,rgba(6,182,212,0.06),transparent 70%);top:60%;left:15%; }
+  .orb {
+    position:absolute; border-radius:50%;
+    /* NO filter:blur — the radial gradient is already soft. blur(130px) was the #1 GPU killer */
+    opacity:0;
+    will-change: transform;
+  }
+  .orb-1 { width:700px;height:700px;background:radial-gradient(circle,rgba(59,130,246,0.15),transparent 60%);top:-250px;left:-150px; animation: orbFloat1 20s ease-in-out infinite; }
+  .orb-2 { width:600px;height:600px;background:radial-gradient(circle,rgba(0,232,143,0.08),transparent 60%);bottom:-250px;right:-150px; animation: orbFloat2 24s ease-in-out infinite; }
+  .orb-3 { width:500px;height:500px;background:radial-gradient(circle,rgba(139,92,246,0.06),transparent 60%);top:35%;left:55%;transform:translate(-50%,-50%); animation: orbPulse 16s ease-in-out infinite; }
+  .orb-4 { width:350px;height:350px;background:radial-gradient(circle,rgba(6,182,212,0.05),transparent 60%);top:60%;left:15%; animation: orbFloat3 22s ease-in-out infinite; }
+
+  @keyframes orbFloat1 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(40px,-30px)} 66%{transform:translate(-30px,20px)} }
+  @keyframes orbFloat2 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(-35px,25px)} 66%{transform:translate(25px,-20px)} }
+  @keyframes orbPulse { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.15)} }
+  @keyframes orbFloat3 { 0%,100%{transform:translate(0,0)} 33%{transform:translate(30px,-40px)} 66%{transform:translate(-20px,15px)} }
 
   @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,232,143,0.5)} 50%{box-shadow:0 0 0 6px rgba(0,232,143,0)} }
+  @keyframes tickerScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-33.33%)} }
 
   /* ---- Noise texture overlay ---- */
   .noise {
@@ -62,8 +73,7 @@
 
   /* ---- Ticker bar ---- */
   .ticker-bar {
-    background: rgba(17,24,39,0.7);
-    backdrop-filter: blur(12px);
+    background: rgba(17,24,39,0.92);
     border-bottom: 1px solid var(--border);
     overflow: hidden;
     height: 36px;
@@ -113,18 +123,16 @@
   h1 {
     font-family:'Space Mono',monospace; font-size:26px; font-weight:700;
     letter-spacing:-0.5px; line-height:1.2;
-    overflow:hidden;
+    opacity:0;
   }
   h1 .dot { color:var(--blue); }
-  /* splitText wraps each char in a span — style them */
-  h1 span span { display:inline-block; }
   .subtitle { font-size:12px; color:var(--t3); margin-top:2px; opacity:0; }
   .header-right { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   .badge {
     display:flex; align-items:center; gap:6px; padding:7px 14px;
     border-radius:100px; font-size:12px; font-weight:600;
     border:1px solid rgba(255,255,255,0.08);
-    backdrop-filter:blur(8px); background:var(--card-glass);
+    background:var(--card-glass);
     transition: all 0.3s; opacity:0; transform:translateY(-10px);
   }
   .badge:hover { border-color:rgba(255,255,255,0.15); background:var(--card); }
@@ -136,7 +144,7 @@
     font-size:11px; color:var(--t3); font-family:'Space Mono',monospace;
     padding:7px 14px; border-radius:100px;
     border:1px solid var(--border); background:var(--card-glass);
-    backdrop-filter:blur(8px); opacity:0; transform:translateY(-10px);
+    opacity:0; transform:translateY(-10px);
   }
   .pulse-dot {
     width:7px; height:7px; background:var(--green); border-radius:50%;
@@ -152,7 +160,7 @@
   @media(max-width:768px){ .market-strip{grid-template-columns:repeat(2,1fr);} }
   @media(max-width:400px){ .market-strip{grid-template-columns:1fr;} }
   .mi {
-    background:var(--card-glass); backdrop-filter:blur(8px);
+    background:var(--card-glass);
     border:1px solid var(--border); border-radius:12px;
     padding:14px 18px; display:flex; justify-content:space-between; align-items:center;
     transition: all 0.3s; opacity:0; transform:translateY(16px);
@@ -196,13 +204,13 @@
   .rate-card::after {
     content:''; position:absolute; top:-60px; right:-60px;
     width:120px; height:120px; border-radius:50%;
-    opacity:0; transition:opacity 0.5s; filter:blur(40px);
+    opacity:0; transition:opacity 0.5s;
   }
   .rate-card:hover::after { opacity:0.15; }
-  .rate-card.conv::after { background:var(--blue); }
-  .rate-card.jumbo::after { background:var(--purple); }
-  .rate-card.arm::after { background:var(--amber); }
-  .rate-card.govt::after { background:var(--green); }
+  .rate-card.conv::after { background:radial-gradient(circle,var(--blue),transparent 70%); }
+  .rate-card.jumbo::after { background:radial-gradient(circle,var(--purple),transparent 70%); }
+  .rate-card.arm::after { background:radial-gradient(circle,var(--amber),transparent 70%); }
+  .rate-card.govt::after { background:radial-gradient(circle,var(--green),transparent 70%); }
 
   .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
   .card-label {
@@ -618,8 +626,8 @@
 <!-- Anime.js v4 via ESM CDN -->
 <script type="module">
 import {
-  animate, createTimeline, stagger, splitText, spring, onScroll, set
-} from 'https://esm.sh/animejs';
+  animate, stagger, spring, onScroll
+} from 'https://cdn.jsdelivr.net/npm/animejs@4/+esm';
 
 /* ==================================================================
    DATA — Live from MND via /api/rates, with fallback
@@ -1020,98 +1028,86 @@ function refreshUI() {
   });
 }
 
-// Fire-and-forget live fetch
+// Background polling — fetch live rates and update on interval
+// First fetch fires immediately, then every 5 minutes
+// Edge cache (s-maxage=300) means most requests are instant CDN hits
 fetchLiveRates().then(updated => { if (updated) refreshUI(); });
 
-// Auto-refresh every 15 minutes
 setInterval(async () => {
   const updated = await fetchLiveRates();
   if (updated) refreshUI();
-}, 900000);
+}, 300000); // 5 min — hits edge cache, not the scraper
 
 const h30 = generateHistory(RATES[0].rate, 0.07);
 const h15 = generateHistory(RATES[1].rate, 0.05);
 const hFHA = generateHistory(RATES[4].rate, 0.04);
 
 /* ==================================================================
-   ANIME.JS — ENTRANCE SEQUENCE (standalone animate calls, no timeline)
+   ANIME.JS — LEAN ENTRANCE SEQUENCE
+   Removed: splitText (DOM-heavy), spring physics on non-critical elements
+   Orb animations moved to CSS keyframes (no JS = no main thread cost)
    ================================================================== */
 
 const snappy = spring({ stiffness: 200, damping: 18, mass: 0.8 });
 
-// ---- Phase 0: Ambient orbs + noise (immediate) ----
-animate('.orb-1', { opacity: [0, 0.8], scale: [0.6, 1], duration: 2000, ease: 'outQuad' });
-animate('.orb-2', { opacity: [0, 0.7], scale: [0.6, 1], duration: 2000, ease: 'outQuad', delay: 200 });
-animate('.orb-3', { opacity: [0, 0.6], scale: [0.6, 1], duration: 2000, ease: 'outQuad', delay: 400 });
-animate('.orb-4', { opacity: [0, 0.5], scale: [0.6, 1], duration: 2000, ease: 'outQuad', delay: 600 });
-animate('.noise', { opacity: [0, 0.4], duration: 1500, ease: 'outQuad' });
+// ---- Phase 0: Orbs fade in via CSS-only (no anime.js needed) ----
+animate('.orb', { opacity: [0, 0.7], duration: 1500, ease: 'outQuad' });
+animate('.noise', { opacity: [0, 0.4], duration: 1200, ease: 'outQuad' });
 
-// ---- Phase 1: Ticker bar (100ms) ----
-animate('.ticker-bar', { opacity: [0, 1], translateY: [-36, 0], duration: 600, ease: 'outExpo', delay: 100 });
+// ---- Phase 1: Ticker bar ----
+animate('.ticker-bar', { opacity: [0, 1], translateY: [-36, 0], duration: 500, ease: 'outExpo', delay: 80 });
 
-// Ticker continuous scroll (separate, never blocks anything)
-animate('.ticker-track', { translateX: [0, '-33.33%'], duration: 60000, ease: 'linear', loop: true });
+// Ticker scroll — CSS animation instead of anime.js loop
+document.querySelector('.ticker-track').style.animation = 'tickerScroll 60s linear infinite';
 
-// ---- Phase 2: Logo + Title (300ms) ----
-animate('.logo-mark', { opacity: [0, 1], scale: [0.5, 1], rotate: [-90, 0], duration: 800, ease: snappy, delay: 300 });
+// ---- Phase 2: Logo + Title (no splitText — just fade in) ----
+animate('.logo-mark', { opacity: [0, 1], scale: [0.5, 1], rotate: [-90, 0], duration: 700, ease: snappy, delay: 200 });
+animate('h1', { opacity: [0, 1], translateY: [15, 0], duration: 500, ease: 'outExpo', delay: 300 });
 
-// splitText for character animation
-const { chars } = splitText('#title', { chars: true });
-animate(chars, {
-  translateY: [30, 0],
-  opacity: [0, 1],
-  rotateX: [40, 0],
-  delay: stagger(35, { from: 'first', start: 400 }),
-  duration: 600,
-  ease: snappy,
-});
+// ---- Phase 3: Subtitle + header badges ----
+animate('.subtitle', { opacity: [0, 1], translateY: [8, 0], duration: 400, ease: 'outExpo', delay: 500 });
+animate('.badge, .live-indicator', { opacity: [0, 1], translateY: [-10, 0], delay: stagger(60, { start: 600 }), duration: 400, ease: 'outExpo' });
+animate('.timestamp', { opacity: [0, 1], duration: 300, ease: 'outQuad', delay: 750 });
 
-// ---- Phase 3: Subtitle + header right (700ms) ----
-animate('.subtitle', { opacity: [0, 1], translateY: [8, 0], duration: 500, ease: 'outExpo', delay: 700 });
-animate('.badge, .live-indicator', { opacity: [0, 1], translateY: [-10, 0], delay: stagger(80, { start: 800 }), duration: 500, ease: 'outExpo' });
-animate('.timestamp', { opacity: [0, 1], duration: 400, ease: 'outQuad', delay: 950 });
-
-// ---- Phase 4: Market strip (1000ms) ----
+// ---- Phase 4: Market strip ----
 animate('.mi', {
   opacity: [0, 1],
   translateY: [16, 0],
-  translateX: [-12, 0],
-  delay: stagger(70, { from: 'first', start: 1000 }),
-  duration: 600,
-  ease: snappy,
+  delay: stagger(50, { from: 'first', start: 800 }),
+  duration: 500,
+  ease: 'outExpo',
 });
 
-// ---- Phase 5: Rates label + cards (1200ms) ----
-animate('#ratesLabel', { opacity: [0, 1], translateX: [-20, 0], duration: 400, ease: 'outExpo', delay: 1200 });
+// ---- Phase 5: Rates label + cards ----
+animate('#ratesLabel', { opacity: [0, 1], translateX: [-20, 0], duration: 400, ease: 'outExpo', delay: 1000 });
 
 animate('.rate-card', {
   opacity: [0, 1],
-  translateY: [30, 0],
-  scale: [0.97, 1],
-  delay: stagger(80, { from: 'center', start: 1300 }),
-  duration: 800,
-  ease: snappy,
+  translateY: [20, 0],
+  delay: stagger(60, { from: 'center', start: 1100 }),
+  duration: 600,
+  ease: 'outExpo',
 });
 
-// ---- Phase 6: Rate counters + range bars (1600ms) ----
+// ---- Phase 6: Rate counters + range bars ----
 setTimeout(() => {
   document.querySelectorAll('.rv').forEach(el => {
     const target = parseFloat(el.dataset.target);
     const counter = { val: 0 };
     animate(counter, {
       val: target,
-      duration: 1400,
+      duration: 1000,
       ease: 'outExpo',
       onUpdate: () => { el.textContent = counter.val.toFixed(2); }
     });
   });
   document.querySelectorAll('.range-fill').forEach(el => {
-    animate(el, { width: [0, el.dataset.w + '%'], duration: 1200, ease: 'outExpo' });
+    animate(el, { width: [0, el.dataset.w + '%'], duration: 800, ease: 'outExpo' });
   });
   document.querySelectorAll('.range-marker').forEach(el => {
-    animate(el, { left: [0, el.dataset.l + '%'], duration: 1200, ease: snappy });
+    animate(el, { left: [0, el.dataset.l + '%'], duration: 800, ease: 'outExpo' });
   });
-}, 1600);
+}, 1300);
 
 // ---- Scroll-triggered sections ----
 animate('#trendLabel', {
@@ -1213,14 +1209,7 @@ document.querySelectorAll('.btn').forEach(btn => {
   });
 });
 
-/* ==================================================================
-   AMBIENT ORB FLOATING (looping, standalone)
-   ================================================================== */
-
-animate('.orb-1', { translateX: [0, 40, -30, 0], translateY: [0, -30, 20, 0], duration: 20000, ease: 'inOutSine', loop: true });
-animate('.orb-2', { translateX: [0, -35, 25, 0], translateY: [0, 25, -20, 0], duration: 24000, ease: 'inOutSine', loop: true });
-animate('.orb-3', { scale: [1, 1.2, 1], duration: 16000, ease: 'inOutSine', loop: true });
-animate('.orb-4', { translateX: [0, 30, -20, 0], translateY: [0, -40, 15, 0], duration: 22000, ease: 'inOutSine', loop: true });
+/* Orb floating is now pure CSS keyframes — zero JS main thread cost */
 
 /* ==================================================================
    EVENT LISTENERS
