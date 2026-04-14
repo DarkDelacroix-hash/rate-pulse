@@ -739,6 +739,64 @@ const TICKER_ITEMS = [
 let loan = 350000;
 
 /* ==================================================================
+   DYNAMIC COMMENTARY — generates text from live rate data
+   ================================================================== */
+function updateCommentary() {
+  const r30 = RATES[0]; // 30yr fixed
+  const r15 = RATES[1]; // 15yr fixed
+  const rFHA = RATES[4]; // FHA
+  const treasury = MARKET[0];
+  const mbs = MARKET[2];
+
+  // Determine MBS direction
+  const mbsChgNum = parseFloat(mbs.chg) || 0;
+  const mbsDirection = mbsChgNum > 0 ? 'higher' : mbsChgNum < 0 ? 'lower' : 'flat';
+  const mbsStrength = Math.abs(mbsChgNum) > 0.3 ? 'significantly' : Math.abs(mbsChgNum) > 0.1 ? 'moderately' : 'slightly';
+  const mbsClass = mbsChgNum >= 0 ? 'green' : 'red';
+  const mbsImpact = mbsChgNum >= 0
+    ? 'which should push lender rate sheets slightly better'
+    : 'which may pressure lender rate sheets slightly higher';
+
+  // Treasury movement
+  const tsyChg = parseFloat(treasury.chg) || 0;
+  const tsyVerb = tsyChg < 0 ? 'fell' : tsyChg > 0 ? 'rose' : 'held steady at';
+  const tsyBps = Math.abs(Math.round(tsyChg * 100));
+  const tsyText = tsyChg !== 0
+    ? `${tsyVerb} ${tsyBps}bps to ${treasury.val}`
+    : `${tsyVerb} ${treasury.val}`;
+
+  // Rate direction
+  const avgChg = (r30.chg + r15.chg + rFHA.chg) / 3;
+  const rateOutlook = avgChg <= -0.05
+    ? 'Look for lenders to reprice positively if MBS gains hold through the session.'
+    : avgChg >= 0.05
+    ? 'Borrowers may want to lock sooner as rate pressure builds.'
+    : 'Rate sheets are expected to remain relatively stable through the session.';
+
+  const commentary = `Mortgage-backed securities are trading <strong class="${mbsClass}">${mbsStrength} ${mbsDirection}</strong> this session, ${mbsImpact}. The <strong class="blue">10-year Treasury</strong> ${tsyText}, ${tsyChg <= 0 ? 'helping' : 'adding pressure to'} the broader rate environment. Top-tier 30yr fixed rates hover near <strong>${r30.rate.toFixed(2)}%</strong> for qualified borrowers. ${rateOutlook}`;
+
+  document.getElementById('commentary').innerHTML = commentary;
+
+  // Update gauge
+  const gaugeAngle = Math.max(-90, Math.min(90, mbsChgNum * 150));
+  const gaugeVal = Math.round(mbsChgNum * 100);
+  const gaugeEl = document.getElementById('gaugeVal');
+  gaugeEl.textContent = (gaugeVal >= 0 ? '+' : '') + gaugeVal + ' bps';
+  gaugeEl.style.color = gaugeVal >= 0 ? 'var(--green)' : 'var(--red)';
+
+  // Update MBS badge
+  const badgeEl = document.getElementById('mbsBadge');
+  const badgeText = document.getElementById('mbsBadgeText');
+  if (mbsChgNum >= 0) {
+    badgeEl.className = 'badge mbs-up';
+    badgeText.textContent = 'MBS Stronger';
+  } else {
+    badgeEl.className = 'badge mbs-down';
+    badgeText.textContent = 'MBS Weaker';
+  }
+}
+
+/* ==================================================================
    UTILITIES
    ================================================================== */
 function pmtCalc(principal, annualRate, months) {
@@ -983,6 +1041,7 @@ buildMarketStrip();
 buildRateCards();
 updateSparkHeaders();
 updateCompare();
+updateCommentary();
 
 // Footer status element
 const statusEl = document.createElement('div');
@@ -1019,6 +1078,7 @@ function refreshUI() {
   updateCompare();
   updateTimestamp();
   updateSourceStatus();
+  updateCommentary();
 
   // Update rate cards WITHOUT rebuilding DOM — just patch the values in-place
   document.querySelectorAll('.rate-card').forEach((card, i) => {
