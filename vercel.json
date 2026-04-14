@@ -1,8 +1,16 @@
 {
-  "buildCommand": null,
-  "outputDirectory": "public",
   "cleanUrls": true,
+  "rewrites": [
+    { "source": "/api/rates", "destination": "/api/rates" }
+  ],
   "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Cache-Control", "value": "s-maxage=900, stale-while-revalidate=1800" }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [

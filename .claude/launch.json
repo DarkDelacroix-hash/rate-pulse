@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Rate.Pulse Dev Server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "public"],
+      "autoPort": true
+    }
+  ]
+}
