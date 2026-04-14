@@ -1000,8 +1000,18 @@ updateSourceStatus();
 // Background fetch — update UI when live rates arrive
 // No re-animation of counters — just set values directly to avoid jarring double-count
 function refreshUI() {
+  // Rebuild ticker + market strip, then force them visible
+  // (new DOM elements inherit opacity:0 from CSS entrance styles)
   buildTicker();
+  document.querySelector('.ticker-track').style.animation = 'tickerScroll 60s linear infinite';
+  document.querySelectorAll('.ticker-item, .ticker-sep').forEach(el => el.style.opacity = '1');
+
   buildMarketStrip();
+  document.querySelectorAll('.mi').forEach(el => {
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+  });
+
   updateSparkHeaders();
   updateCompare();
   updateTimestamp();
@@ -1236,24 +1246,13 @@ document.getElementById('cmp1').addEventListener('change', updateCompare);
 document.getElementById('cmp2').addEventListener('change', updateCompare);
 setInterval(updateTimestamp, 60000);
 
-// Refresh button — re-fetch live rates
+// Refresh button — re-fetch live rates and reuse refreshUI()
 document.getElementById('refreshBtn').addEventListener('click', async () => {
   const btn = document.getElementById('refreshBtn');
   btn.style.opacity = '0.5';
   btn.style.pointerEvents = 'none';
   const updated = await fetchLiveRates();
-  if (updated) {
-    buildRateCards();
-    buildTicker();
-    buildMarketStrip();
-    updateSparkHeaders();
-    updateCompare();
-    updateTimestamp();
-    animate('.rate-card', {
-      opacity: [0.6, 1], translateY: [6, 0],
-      delay: stagger(50), duration: 500, ease: 'outExpo'
-    });
-  }
+  if (updated) refreshUI();
   btn.style.opacity = '1';
   btn.style.pointerEvents = 'auto';
 });
