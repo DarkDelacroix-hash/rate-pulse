@@ -437,6 +437,48 @@
   .commentary-text strong.blue { color:var(--accent-glow); }
   .commentary-meta { margin-top:16px; font-size:11px; color:var(--t3); display:flex; gap:16px; }
 
+  /* ---- News Carousel ---- */
+  .news-carousel { position:relative; overflow:hidden; min-height:160px; }
+  .news-slide {
+    display:none; opacity:0;
+    transition: opacity 0.4s ease;
+  }
+  .news-slide.active { display:block; opacity:1; }
+  .news-headline {
+    font-size:15px; font-weight:700; color:var(--t1);
+    line-height:1.4; margin-bottom:8px;
+  }
+  .news-headline a {
+    color:var(--t1); text-decoration:none;
+    transition:color 0.2s;
+  }
+  .news-headline a:hover { color:var(--accent-light); }
+  .news-summary { font-size:13px; color:var(--t2); line-height:1.6; }
+  .news-date { font-size:11px; color:var(--t3); margin-top:10px; font-family:'Space Mono',monospace; }
+  .carousel-controls {
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:14px; padding-top:12px; border-top:1px solid var(--border);
+  }
+  .carousel-dots { display:flex; gap:6px; }
+  .carousel-dot {
+    width:7px; height:7px; border-radius:50%;
+    background:var(--border); cursor:pointer;
+    transition:background 0.3s, transform 0.3s;
+  }
+  .carousel-dot.active { background:var(--accent-light); transform:scale(1.3); }
+  .carousel-nav {
+    display:flex; gap:6px;
+  }
+  .carousel-btn {
+    width:28px; height:28px; border-radius:8px;
+    border:1px solid var(--border); background:transparent;
+    color:var(--t3); cursor:pointer; display:flex;
+    align-items:center; justify-content:center;
+    transition:all 0.2s;
+  }
+  .carousel-btn:hover { border-color:var(--border-hover); color:var(--t1); background:var(--card-glass); }
+  .carousel-btn svg { width:14px; height:14px; }
+
   /* ---- Calculator / tools row ---- */
   .tools-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:28px; }
   @media(max-width:768px){ .tools-row{grid-template-columns:1fr;} }
@@ -620,12 +662,27 @@
       </div>
     </div>
     <div class="mbs-card" id="commentaryCard">
-      <h3>Rate Commentary</h3>
-      <p class="commentary-text" id="commentary">
-        Mortgage-backed securities are trading <strong class="green">moderately higher</strong> this session, which should push lender rate sheets slightly better. The <strong class="blue">10-year Treasury</strong> fell 4bps to 4.18%, helping the broader rate environment. Top-tier 30yr fixed rates hover just below <strong>6.40%</strong> for qualified borrowers. Look for lenders to reprice positively if MBS gains hold through the afternoon.
-      </p>
-      <div class="commentary-meta">
-        <span>Source: MBS Market Data</span>
+      <h3>Rate News</h3>
+      <div class="news-carousel" id="newsCarousel">
+        <div class="news-slide active" id="newsSlide0">
+          <p class="commentary-text" id="commentary">
+            Mortgage-backed securities are trading <strong class="green">moderately higher</strong> this session, which should push lender rate sheets slightly better.
+          </p>
+        </div>
+      </div>
+      <div class="carousel-controls" id="carouselControls" style="display:none">
+        <div class="carousel-dots" id="carouselDots"></div>
+        <div class="carousel-nav">
+          <button class="carousel-btn" id="carouselPrev" aria-label="Previous">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="carousel-btn" id="carouselNext" aria-label="Next">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="commentary-meta" style="margin-top:10px">
+        <span id="newsSource">Source: MBS Market Data</span>
         <span id="commentaryTime"></span>
       </div>
     </div>
@@ -796,9 +853,12 @@ async function fetchLiveRates() {
       TICKER_ITEMS[5].chg = (RATES[4].chg <= 0 ? '' : '+') + (RATES[4].chg * 100).toFixed(0) + 'bps';
       TICKER_ITEMS[5].dir = RATES[4].chg <= 0 ? 'down' : 'up';
 
-      // Capture live commentary if available
-      if (data.commentary) {
+      // Capture live commentary (array of articles for carousel)
+      if (data.commentary && Array.isArray(data.commentary) && data.commentary.length > 0) {
         liveCommentary = data.commentary;
+      } else if (data.commentary && data.commentary.headline) {
+        // Legacy single article format
+        liveCommentary = [data.commentary];
       }
 
       console.log('[Homespire.Rates] Live rates loaded from MND:', RATES.map(r => r.rate));
@@ -836,53 +896,16 @@ let loan = 350000;
 /* ==================================================================
    DYNAMIC COMMENTARY — generates text from live rate data
    ================================================================== */
+let carouselIndex = 0;
+let carouselInterval = null;
+
 function updateCommentary() {
-  const r30 = RATES[0]; // 30yr fixed
-  const r15 = RATES[1]; // 15yr fixed
-  const rFHA = RATES[4]; // FHA
-  const treasury = MARKET[0];
+  const r30 = RATES[0];
   const mbs = MARKET[2];
-
-  // Determine MBS direction
+  const treasury = MARKET[0];
   const mbsChgNum = parseFloat(mbs.chg) || 0;
-  const mbsDirection = mbsChgNum > 0 ? 'higher' : mbsChgNum < 0 ? 'lower' : 'flat';
-  const mbsStrength = Math.abs(mbsChgNum) > 0.3 ? 'significantly' : Math.abs(mbsChgNum) > 0.1 ? 'moderately' : 'slightly';
-  const mbsClass = mbsChgNum >= 0 ? 'green' : 'red';
-  const mbsImpact = mbsChgNum >= 0
-    ? 'which should push lender rate sheets slightly better'
-    : 'which may pressure lender rate sheets slightly higher';
-
-  // Treasury movement
-  const tsyChg = parseFloat(treasury.chg) || 0;
-  const tsyVerb = tsyChg < 0 ? 'fell' : tsyChg > 0 ? 'rose' : 'held steady at';
-  const tsyBps = Math.abs(Math.round(tsyChg * 100));
-  const tsyText = tsyChg !== 0
-    ? `${tsyVerb} ${tsyBps}bps to ${treasury.val}`
-    : `${tsyVerb} ${treasury.val}`;
-
-  // Rate direction
-  const avgChg = (r30.chg + r15.chg + rFHA.chg) / 3;
-  const rateOutlook = avgChg <= -0.05
-    ? 'Look for lenders to reprice positively if MBS gains hold through the session.'
-    : avgChg >= 0.05
-    ? 'Borrowers may want to lock sooner as rate pressure builds.'
-    : 'Rate sheets are expected to remain relatively stable through the session.';
-
-  // Use live scraped commentary if available, otherwise generate from data
-  let commentaryHtml;
-  if (liveCommentary && liveCommentary.headline) {
-    const headline = liveCommentary.headline;
-    const summary = liveCommentary.summary || '';
-    commentaryHtml = `<strong class="blue">${headline}</strong> — ${summary} Top-tier 30yr fixed rates are at <strong>${r30.rate.toFixed(2)}%</strong> today.`;
-    document.querySelector('#commentaryCard .commentary-meta span:first-child').textContent = 'Source: Mortgage News Daily';
-  } else {
-    commentaryHtml = `Mortgage-backed securities are trading <strong class="${mbsClass}">${mbsStrength} ${mbsDirection}</strong> this session, ${mbsImpact}. The <strong class="blue">10-year Treasury</strong> ${tsyText}, ${tsyChg <= 0 ? 'helping' : 'adding pressure to'} the broader rate environment. Top-tier 30yr fixed rates hover near <strong>${r30.rate.toFixed(2)}%</strong> for qualified borrowers. ${rateOutlook}`;
-  }
-
-  document.getElementById('commentary').innerHTML = commentaryHtml;
 
   // Update gauge
-  const gaugeAngle = Math.max(-90, Math.min(90, mbsChgNum * 150));
   const gaugeVal = Math.round(mbsChgNum * 100);
   const gaugeEl = document.getElementById('gaugeVal');
   gaugeEl.textContent = (gaugeVal >= 0 ? '+' : '') + gaugeVal + ' bps';
@@ -898,6 +921,64 @@ function updateCommentary() {
     badgeEl.className = 'badge mbs-down';
     badgeText.textContent = 'MBS Weaker';
   }
+
+  // Build news carousel from live articles or fallback
+  const carousel = document.getElementById('newsCarousel');
+  const controls = document.getElementById('carouselControls');
+  const dotsWrap = document.getElementById('carouselDots');
+
+  if (liveCommentary && Array.isArray(liveCommentary) && liveCommentary.length > 0) {
+    // Build slides from RSS articles
+    carousel.innerHTML = liveCommentary.map((article, i) => {
+      const dateStr = article.pubDate ? new Date(article.pubDate).toLocaleString('en-US', { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+      return `<div class="news-slide ${i === 0 ? 'active' : ''}" id="newsSlide${i}">
+        <div class="news-headline">${article.link ? `<a href="${article.link}" target="_blank">${article.headline}</a>` : article.headline}</div>
+        <div class="news-summary">${article.summary}</div>
+        ${dateStr ? `<div class="news-date">${dateStr}</div>` : ''}
+      </div>`;
+    }).join('');
+
+    // Build dots
+    dotsWrap.innerHTML = liveCommentary.map((_, i) =>
+      `<span class="carousel-dot ${i === 0 ? 'active' : ''}" data-idx="${i}"></span>`
+    ).join('');
+
+    controls.style.display = liveCommentary.length > 1 ? 'flex' : 'none';
+    document.getElementById('newsSource').textContent = 'Source: Mortgage News Daily';
+    carouselIndex = 0;
+
+    // Auto-advance every 8 seconds
+    if (carouselInterval) clearInterval(carouselInterval);
+    if (liveCommentary.length > 1) {
+      carouselInterval = setInterval(() => goToSlide((carouselIndex + 1) % liveCommentary.length), 8000);
+    }
+  } else {
+    // Fallback: auto-generated commentary
+    const mbsDirection = mbsChgNum > 0 ? 'higher' : mbsChgNum < 0 ? 'lower' : 'flat';
+    const mbsStrength = Math.abs(mbsChgNum) > 0.3 ? 'significantly' : Math.abs(mbsChgNum) > 0.1 ? 'moderately' : 'slightly';
+    const mbsClass = mbsChgNum >= 0 ? 'green' : 'red';
+    const tsyChg = parseFloat(treasury.chg) || 0;
+    const tsyVerb = tsyChg < 0 ? 'fell' : tsyChg > 0 ? 'rose' : 'held steady at';
+    const tsyBps = Math.abs(Math.round(tsyChg * 100));
+    const tsyText = tsyChg !== 0 ? `${tsyVerb} ${tsyBps}bps to ${treasury.val}` : `${tsyVerb} ${treasury.val}`;
+
+    carousel.innerHTML = `<div class="news-slide active">
+      <p class="commentary-text">Mortgage-backed securities are trading <strong class="${mbsClass}">${mbsStrength} ${mbsDirection}</strong> this session. The <strong class="blue">10-year Treasury</strong> ${tsyText}. Top-tier 30yr fixed rates hover near <strong>${r30.rate.toFixed(2)}%</strong>.</p>
+    </div>`;
+    controls.style.display = 'none';
+    document.getElementById('newsSource').textContent = 'Source: MBS Market Data';
+  }
+}
+
+function goToSlide(idx) {
+  const slides = document.querySelectorAll('.news-slide');
+  const dots = document.querySelectorAll('.carousel-dot');
+  if (idx < 0 || idx >= slides.length) return;
+  slides.forEach(s => { s.classList.remove('active'); });
+  dots.forEach(d => { d.classList.remove('active'); });
+  slides[idx]?.classList.add('active');
+  dots[idx]?.classList.add('active');
+  carouselIndex = idx;
 }
 
 /* ==================================================================
@@ -1408,6 +1489,25 @@ document.querySelectorAll('.btn').forEach(btn => {
    ================================================================== */
 
 document.getElementById('calcBtn').addEventListener('click', calculate);
+
+// Carousel controls
+document.getElementById('carouselPrev').addEventListener('click', () => {
+  const total = document.querySelectorAll('.news-slide').length;
+  goToSlide((carouselIndex - 1 + total) % total);
+  if (carouselInterval) { clearInterval(carouselInterval); carouselInterval = setInterval(() => goToSlide((carouselIndex + 1) % total), 8000); }
+});
+document.getElementById('carouselNext').addEventListener('click', () => {
+  const total = document.querySelectorAll('.news-slide').length;
+  goToSlide((carouselIndex + 1) % total);
+  if (carouselInterval) { clearInterval(carouselInterval); carouselInterval = setInterval(() => goToSlide((carouselIndex + 1) % total), 8000); }
+});
+document.getElementById('carouselDots').addEventListener('click', (e) => {
+  if (e.target.classList.contains('carousel-dot')) {
+    goToSlide(parseInt(e.target.dataset.idx));
+    const total = document.querySelectorAll('.news-slide').length;
+    if (carouselInterval) { clearInterval(carouselInterval); carouselInterval = setInterval(() => goToSlide((carouselIndex + 1) % total), 8000); }
+  }
+});
 document.getElementById('loanInput').addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
 document.getElementById('cmp1').addEventListener('change', updateCompare);
 document.getElementById('cmp2').addEventListener('change', updateCompare);

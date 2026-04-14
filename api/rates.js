@@ -77,24 +77,25 @@ async function scrapeMND() {
   // Fetch daily rate commentary from MND RSS feed
   // Articles on the main page are client-rendered (Handlebars + WebSocket),
   // so we grab from the RSS feed instead which has actual content
+  // Fetch multiple articles from MND RSS feed for the news carousel
   let commentary = null;
+  const articles = [];
   try {
     const rssRes = await fetch('https://www.mortgagenewsdaily.com/rss/full', {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RatePulse/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HomespireRates/1.0)' },
     });
     if (rssRes.ok) {
       const rssXml = await rssRes.text();
+      const items = rssXml.split('<item>').slice(1, 10); // scan first 10 items
 
-      // Find the first rate-related article (skip industry/product news)
-      const items = rssXml.split('<item>').slice(1, 6); // first 5 items
       for (const item of items) {
         const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/);
         const descMatch = item.match(/<description>([\s\S]*?)<\/description>/);
+        const linkMatch = item.match(/<link>([\s\S]*?)<\/link>/);
+        const dateMatch = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
         const title = titleMatch ? titleMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : '';
 
-        // Filter for rate/MBS/bond related headlines
-        const isRateNews = /rate|mortgage|mbs|bond|treasury|yield|lock|lender|pricing/i.test(title);
-        if (isRateNews && descMatch) {
+        if (descMatch) {
           let desc = descMatch[1]
             .replace(/<!\[CDATA\[|\]\]>/g, '')
             .replace(/<[^>]+>/g, '')
@@ -107,14 +108,19 @@ async function scrapeMND() {
             .trim();
           // Skip items with unrendered template placeholders
           if (desc.includes('{{') || desc.length < 20) continue;
-          if (desc.length > 400) desc = desc.slice(0, 397) + '...';
-          commentary = { headline: title.trim(), summary: desc };
-          break;
+          if (desc.length > 300) desc = desc.slice(0, 297) + '...';
+          const link = linkMatch ? linkMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : null;
+          const pubDate = dateMatch ? dateMatch[1].replace(/<!\[CDATA\[|\]\]>/g, '').trim() : null;
+          articles.push({ headline: title.trim(), summary: desc, link, pubDate });
+          if (articles.length >= 5) break; // max 5 articles for carousel
         }
       }
     }
   } catch (e) {
     // RSS fetch is non-critical — commentary falls back to auto-generated
+  }
+  if (articles.length > 0) {
+    commentary = articles; // Array of articles for carousel
   }
 
   return {
