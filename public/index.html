@@ -962,12 +962,10 @@ function calculate() {
 }
 
 /* ==================================================================
-   BUILD EVERYTHING — fetch live rates first, then render
+   BUILD EVERYTHING — render immediately, fetch live rates in background
    ================================================================== */
 
-// Try to load live data, then build regardless
-await fetchLiveRates();
-
+// Render instantly with fallback data — don't wait for API
 buildTicker();
 updateTimestamp();
 buildMarketStrip();
@@ -975,34 +973,60 @@ buildRateCards();
 updateSparkHeaders();
 updateCompare();
 
-// Update data source indicator in footer
-const footerEl = document.querySelector('.footer');
-if (footerEl && dataSource === 'mortgagenewsdaily.com') {
-  footerEl.querySelector('a')?.closest('.footer')?.insertAdjacentHTML('beforeend',
-    `<div style="margin-top:4px;font-size:10px;color:var(--green);">● Live data from Mortgage News Daily</div>`
-  );
-} else if (footerEl) {
-  footerEl.insertAdjacentHTML('beforeend',
-    `<div style="margin-top:4px;font-size:10px;color:var(--amber);">● Using cached rates — deploy to Vercel for live MND data</div>`
-  );
+// Footer status element
+const statusEl = document.createElement('div');
+statusEl.style.cssText = 'margin-top:4px;font-size:10px;';
+document.getElementById('footer').appendChild(statusEl);
+
+function updateSourceStatus() {
+  if (dataSource === 'mortgagenewsdaily.com') {
+    statusEl.style.color = 'var(--green)';
+    statusEl.textContent = '● Live data from Mortgage News Daily';
+  } else {
+    statusEl.style.color = 'var(--amber)';
+    statusEl.textContent = '● Using cached rates — loading live data...';
+  }
+}
+updateSourceStatus();
+
+// Background fetch — update UI when live rates arrive
+function refreshUI() {
+  buildRateCards();
+  buildTicker();
+  buildMarketStrip();
+  updateSparkHeaders();
+  updateCompare();
+  updateTimestamp();
+  updateSourceStatus();
+  // Smooth transition for updated cards
+  animate('.rate-card', {
+    opacity: [0.6, 1], translateY: [6, 0],
+    delay: stagger(50), duration: 500, ease: 'outExpo'
+  });
+  // Re-trigger counters
+  document.querySelectorAll('.rv').forEach(el => {
+    const target = parseFloat(el.dataset.target);
+    const counter = { val: 0 };
+    animate(counter, {
+      val: target, duration: 1000, ease: 'outExpo',
+      onUpdate: () => { el.textContent = counter.val.toFixed(2); }
+    });
+  });
+  document.querySelectorAll('.range-fill').forEach(el => {
+    animate(el, { width: [0, el.dataset.w + '%'], duration: 900, ease: 'outExpo' });
+  });
+  document.querySelectorAll('.range-marker').forEach(el => {
+    animate(el, { left: [0, el.dataset.l + '%'], duration: 900, ease: 'outExpo' });
+  });
 }
 
-// Auto-refresh every 15 minutes when deployed
+// Fire-and-forget live fetch
+fetchLiveRates().then(updated => { if (updated) refreshUI(); });
+
+// Auto-refresh every 15 minutes
 setInterval(async () => {
   const updated = await fetchLiveRates();
-  if (updated) {
-    buildRateCards();
-    buildTicker();
-    buildMarketStrip();
-    updateSparkHeaders();
-    updateCompare();
-    updateTimestamp();
-    // Animate rate cards entrance on refresh
-    animate('.rate-card', {
-      opacity: [0.7, 1], translateY: [4, 0],
-      delay: stagger(50), duration: 400, ease: 'outExpo'
-    });
-  }
+  if (updated) refreshUI();
 }, 900000);
 
 const h30 = generateHistory(RATES[0].rate, 0.07);

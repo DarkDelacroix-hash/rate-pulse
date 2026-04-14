@@ -1,6 +1,8 @@
-// Vercel Serverless Function — scrapes Mortgage News Daily for current rates
+// Vercel Edge Function — scrapes Mortgage News Daily for current rates
+// Edge runtime: ~0ms cold start vs ~250ms+ for Node.js serverless
 // Endpoint: GET /api/rates
-// Returns JSON with all 6 MND rate products, MBS data, and treasury yield
+
+export const config = { runtime: 'edge' };
 
 const PRODUCT_MAP = [
   { key: 'thirty_yr_fixed', label: '30 Yr Fixed', cls: 'conv', defaultYears: 30 },
@@ -11,14 +13,15 @@ const PRODUCT_MAP = [
   { key: 'thirty_yr_va', label: '30 Yr VA', cls: 'govt', defaultYears: 30 },
 ];
 
-export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET');
-  res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800'); // 15min cache
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Cache-Control': 's-maxage=900, stale-while-revalidate=1800',
+};
 
+export default async function handler(req) {
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return new Response(null, { status: 200, headers: HEADERS });
   }
 
   try {
@@ -36,84 +39,64 @@ export default async function handler(req, res) {
 
     const html = await response.text();
 
-    // Parse rate products (data-series 0-5)
-    const rates = [];
-    for (let i = 0; i < 6; i++) {
-      const product = PRODUCT_MAP[i];
+    // Parse all daily changes and ranges once (avoid re-scanning per product)
+    const allChanges = [];
+    const chgRegex = /rate-daily-chg[\s\S]*?([-+]?\d+\.?\d*)\s*<\/div>/g;
+    let m;
+    while ((m = chgRegex.exec(html)) !== null) allChanges.push(parseFloat(m[1]));
 
-      // Extract rate from data-calc-rate attribute
+    const allLows = [];
+    const allHighs = [];
+    const lowRegex = /range-val low[^>]*>([\d.]+)%<\/div>/g;
+    const highRegex = /range-val high[^>]*>([\d.]+)%<\/div>/g;
+    while ((m = lowRegex.exec(html)) !== null) allLows.push(parseFloat(m[1]));
+    while ((m = highRegex.exec(html)) !== null) allHighs.push(parseFloat(m[1]));
+
+    // Dedupe (mobile + desktop = 2 entries each)
+    const uniqueLows = allLows.filter((_, j) => j % 2 === 0);
+    const uniqueHighs = allHighs.filter((_, j) => j % 2 === 0);
+
+    // Build rate objects
+    const rates = PRODUCT_MAP.map((product, i) => {
       const rateMatch = html.match(
         new RegExp(`data-series="${i}"[\\s\\S]*?data-calc-rate="([\\d.]+)"`)
       );
-
-      // Extract daily change from rate-daily-chg
-      const chgRegex = /rate-daily-chg[\s\S]*?([-+]?\d+\.?\d*)\s*<\/div>/g;
-      let chgMatch;
-      const allChanges = [];
-      while ((chgMatch = chgRegex.exec(html)) !== null) {
-        allChanges.push(parseFloat(chgMatch[1]));
-      }
-
-      // Extract 52-week range (low and high appear twice per product, take unique pairs)
-      const lowRegex = /range-val low[^>]*>([\d.]+)%<\/div>/g;
-      const highRegex = /range-val high[^>]*>([\d.]+)%<\/div>/g;
-      const allLows = [];
-      const allHighs = [];
-      let m;
-      while ((m = lowRegex.exec(html)) !== null) allLows.push(parseFloat(m[1]));
-      while ((m = highRegex.exec(html)) !== null) allHighs.push(parseFloat(m[1]));
-
-      // Each product has 2 low and 2 high entries (mobile + desktop), dedupe by index
-      const uniqueLows = [];
-      const uniqueHighs = [];
-      for (let j = 0; j < allLows.length; j += 2) uniqueLows.push(allLows[j]);
-      for (let j = 0; j < allHighs.length; j += 2) uniqueHighs.push(allHighs[j]);
-
-      const rate = rateMatch ? parseFloat(rateMatch[1]) : null;
-      const chg = allChanges[i] !== undefined ? allChanges[i] : null;
-      const lo = uniqueLows[i] !== undefined ? uniqueLows[i] : null;
-      const hi = uniqueHighs[i] !== undefined ? uniqueHighs[i] : null;
-
-      rates.push({
+      return {
         key: product.key,
         label: product.label,
         cls: product.cls,
-        rate,
-        chg,
-        lo,
-        hi,
+        rate: rateMatch ? parseFloat(rateMatch[1]) : null,
+        chg: allChanges[i] ?? null,
+        lo: uniqueLows[i] ?? null,
+        hi: uniqueHighs[i] ?? null,
         years: product.defaultYears,
-      });
-    }
+      };
+    });
 
-    // Extract MBS price from the page (UMBS 30YR section)
-    let mbs = null;
+    // MBS price
     const mbsMatch = html.match(/current-rate mbs[\s\S]*?([\d.]+)/);
-    if (mbsMatch) mbs = parseFloat(mbsMatch[1]);
+    const mbs = mbsMatch ? parseFloat(mbsMatch[1]) : null;
 
-    // Extract 10Y Treasury
-    let treasury10y = null;
+    // 10Y Treasury
     const treasuryMatch = html.match(/10 Year US Treasury[\s\S]*?current-rate mbs[\s\S]*?([\d.]+)/);
-    if (treasuryMatch) treasury10y = parseFloat(treasuryMatch[1]);
+    const treasury10y = treasuryMatch ? parseFloat(treasuryMatch[1]) : null;
 
-    // Check if any rates were actually found
-    const validRates = rates.filter(r => r.rate !== null);
-    if (validRates.length === 0) {
+    if (rates.every(r => r.rate === null)) {
       throw new Error('Failed to parse any rates from MND page');
     }
 
-    return res.status(200).json({
+    return new Response(JSON.stringify({
       source: 'mortgagenewsdaily.com',
       fetched_at: new Date().toISOString(),
       rates,
       market: { mbs_price: mbs, treasury_10y: treasury10y },
-    });
+    }), { status: 200, headers: HEADERS });
+
   } catch (err) {
-    console.error('Rate scrape error:', err.message);
-    return res.status(502).json({
+    return new Response(JSON.stringify({
       error: 'Failed to fetch rates',
       message: err.message,
       fetched_at: new Date().toISOString(),
-    });
+    }), { status: 502, headers: HEADERS });
   }
 }
