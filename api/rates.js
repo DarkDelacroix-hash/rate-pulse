@@ -74,11 +74,33 @@ async function scrapeMND() {
     throw new Error('Failed to parse any rates from MND page');
   }
 
+  // Extract daily rate commentary headline + summary
+  let commentary = null;
+  try {
+    // Match the main article in the hp-rates / Mortgage Rate Watch section
+    const headlineMatch = html.match(/class="article[\s\S]*?<a[^>]*class="article-url"[^>]*>([\s\S]*?)<\/a>/);
+    const summaryMatch = html.match(/class="article[\s\S]*?class="article-content"[^>]*>([\s\S]*?)<\/div>/);
+
+    let headline = headlineMatch ? headlineMatch[1].replace(/<[^>]+>/g, '').trim() : null;
+    let summary = summaryMatch ? summaryMatch[1].replace(/<[^>]+>/g, '').trim() : null;
+
+    // Clean up: limit summary length, remove extra whitespace
+    if (summary && summary.length > 500) summary = summary.slice(0, 497) + '...';
+    if (summary) summary = summary.replace(/\s+/g, ' ').trim();
+
+    if (headline || summary) {
+      commentary = { headline, summary };
+    }
+  } catch (e) {
+    // Commentary parsing is non-critical — don't fail the whole response
+  }
+
   return {
     source: 'mortgagenewsdaily.com',
     fetched_at: new Date().toISOString(),
     rates,
     market: { mbs_price: mbs, treasury_10y: treasury10y },
+    commentary,
   };
 }
 

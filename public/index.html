@@ -751,6 +751,7 @@ assignBadges(FALLBACK_RATES);
 let RATES = [...FALLBACK_RATES];
 let dataSource = 'fallback';
 let lastFetchedAt = null;
+let liveCommentary = null; // { headline, summary } from MND scrape
 
 // Fetch live rates from the serverless scraper
 async function fetchLiveRates() {
@@ -795,7 +796,12 @@ async function fetchLiveRates() {
       TICKER_ITEMS[5].chg = (RATES[4].chg <= 0 ? '' : '+') + (RATES[4].chg * 100).toFixed(0) + 'bps';
       TICKER_ITEMS[5].dir = RATES[4].chg <= 0 ? 'down' : 'up';
 
-      console.log('[Rate.Pulse] Live rates loaded from MND:', RATES.map(r => r.rate));
+      // Capture live commentary if available
+      if (data.commentary) {
+        liveCommentary = data.commentary;
+      }
+
+      console.log('[Homespire.Rates] Live rates loaded from MND:', RATES.map(r => r.rate));
       return true;
     }
   } catch (err) {
@@ -862,9 +868,18 @@ function updateCommentary() {
     ? 'Borrowers may want to lock sooner as rate pressure builds.'
     : 'Rate sheets are expected to remain relatively stable through the session.';
 
-  const commentary = `Mortgage-backed securities are trading <strong class="${mbsClass}">${mbsStrength} ${mbsDirection}</strong> this session, ${mbsImpact}. The <strong class="blue">10-year Treasury</strong> ${tsyText}, ${tsyChg <= 0 ? 'helping' : 'adding pressure to'} the broader rate environment. Top-tier 30yr fixed rates hover near <strong>${r30.rate.toFixed(2)}%</strong> for qualified borrowers. ${rateOutlook}`;
+  // Use live scraped commentary if available, otherwise generate from data
+  let commentaryHtml;
+  if (liveCommentary && liveCommentary.headline) {
+    const headline = liveCommentary.headline;
+    const summary = liveCommentary.summary || '';
+    commentaryHtml = `<strong class="blue">${headline}</strong> — ${summary} Top-tier 30yr fixed rates are at <strong>${r30.rate.toFixed(2)}%</strong> today.`;
+    document.querySelector('#commentaryCard .commentary-meta span:first-child').textContent = 'Source: Mortgage News Daily';
+  } else {
+    commentaryHtml = `Mortgage-backed securities are trading <strong class="${mbsClass}">${mbsStrength} ${mbsDirection}</strong> this session, ${mbsImpact}. The <strong class="blue">10-year Treasury</strong> ${tsyText}, ${tsyChg <= 0 ? 'helping' : 'adding pressure to'} the broader rate environment. Top-tier 30yr fixed rates hover near <strong>${r30.rate.toFixed(2)}%</strong> for qualified borrowers. ${rateOutlook}`;
+  }
 
-  document.getElementById('commentary').innerHTML = commentary;
+  document.getElementById('commentary').innerHTML = commentaryHtml;
 
   // Update gauge
   const gaugeAngle = Math.max(-90, Math.min(90, mbsChgNum * 150));
